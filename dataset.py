@@ -1,21 +1,3 @@
-"""
-dataset.py
-PyTorch Dataset yang membaca sinyal mentah PTB-XL (.dat/.hea via wfdb) dan
-melakukan SELURUH preprocessing (filter, normalisasi, fix-length, augmentasi)
-secara ON-THE-FLY di __getitem__. Tidak ada file hasil preprocessing yang
-ditulis ke disk -> hemat storage, dan augmentasi selalu random tiap epoch.
-
-Stabilitas training dijaga lewat:
-  1. fix_length()      -> semua sinyal keluar dengan shape (n_leads, target_len) yang SAMA
-  2. zscore_normalize() -> skala amplitudo antar sample konsisten
-  3. lead_dropout()     -> regularisasi robustness antar-lead (BARU), khusus
-     membantu kelas yang kriterianya tersebar di beberapa lead (mis. HYP)
-  4. WeightedRandomSampler (opsional, lihat build_dataloaders use_sampler) ->
-     tiap batch tidak didominasi kelas mayoritas. v2: dibuat opsional supaya
-     bisa di-ablasi terhadap loss function yang sudah menangani imbalance
-     sendiri (focal/asl) -> kombinasi keduanya bisa over-correct.
-"""
-
 import os
 import numpy as np
 import pandas as pd

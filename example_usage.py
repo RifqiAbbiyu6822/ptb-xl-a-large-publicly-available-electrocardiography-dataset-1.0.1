@@ -1,13 +1,3 @@
-"""
-example_usage.py
-Contoh menjalankan pipeline preprocessing PTB-XL dari nol sampai dataloader
-siap pakai. Jalankan file ini untuk sanity-check sebelum lanjut ke tahap
-training (model SE-ConvNeXt1D menyusul terpisah).
-
-Cara pakai:
-    python example_usage.py --ptbxl_root /path/ke/ptb-xl
-"""
-
 import argparse
 
 from config import PTBXLConfig

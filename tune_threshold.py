@@ -1,31 +1,3 @@
-"""
-tune_threshold.py
-Cari threshold optimal PER KELAS berdasarkan val set, lalu evaluasi ulang
-test set memakai threshold tersebut.
-
-v2 (bootstrap-based, robust):
-  Threshold tuning konvensional (cari 1 titik optimal langsung dari val set)
-  rawan overfitting ke noise kalau jumlah sample positif di val kecil -- ini
-  persis kasus HYP di dataset ini. Buktinya empiris: threshold "optimal" HYP
-  dari val set beberapa kali justru MENURUNKAN F1 di test set.
-
-  Untuk mendeteksi ini secara sistematis, script ini melakukan BOOTSTRAP:
-  resample val set ratusan kali (with replacement), cari threshold optimal
-  di tiap resample, lalu lihat sebarannya:
-    - Threshold optimal konsisten (95% CI sempit) -> dipercaya, dipakai.
-    - Threshold optimal melompat-lompat (CI lebar) -> sample kurang, FALLBACK
-      ke threshold default 0.5 untuk kelas itu supaya tidak overfit noise val.
-
-  PENTING: threshold (atau keputusan fallback) SELALU ditentukan dari VAL SET,
-  baru dievaluasi (tanpa di-tuning ulang) di TEST SET. Tuning langsung di test
-  set = test set leakage, jangan pernah dilakukan.
-
-Contoh pakai:
-    python tune_threshold.py --ptbxl_root "." --sampling_rate 100 \
-        --checkpoint ./checkpoints_v3_globalnorm/best_model.pt --model_variant tiny \
-        --n_bootstrap 500 --ci_width_threshold 0.15
-"""
-
 import argparse
 import json
 

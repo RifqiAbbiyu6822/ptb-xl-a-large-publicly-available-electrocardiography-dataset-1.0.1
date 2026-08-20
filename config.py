@@ -1,21 +1,3 @@
-"""
-config.py
-Konfigurasi terpusat untuk pipeline preprocessing + training PTB-XL.
-Semua angka penting (panjang sinyal, filter, augmentasi, fold split)
-diletakkan di sini supaya konsisten dan mudah direproduksi (stabil).
-
-v2 (imbalance-focused):
-  - Menambahkan augmentasi lead-dropout. Kelas seperti HYP kriterianya
-    tersebar di beberapa lead spesifik (voltage & axis criteria: aVL, aVF,
-    V1-V6). Dengan random men-nol-kan 1-2 lead saat training, model dipaksa
-    tidak overfit ke lead tertentu -> representasi lebih general -> membantu
-    kelas minoritas/sulit yang sinyalnya "tersebar", bukan cuma soal jumlah
-    sample.
-  - Pemilihan loss function (bce / bce_pos_weight / focal / asl) dan
-    on/off WeightedRandomSampler dipindah ke train.py (argparse), karena itu
-    keputusan level-training, bukan preprocessing. Lihat losses.py.
-"""
-
 from dataclasses import dataclass, field
 from typing import List, Tuple
 

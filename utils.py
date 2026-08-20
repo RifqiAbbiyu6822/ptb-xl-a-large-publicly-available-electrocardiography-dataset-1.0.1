@@ -1,10 +1,3 @@
-"""
-utils.py
-Utility kecil: fixing random seed (reprodusibilitas) dan validasi cepat
-terhadap sample dataset untuk memastikan tidak ada NaN / shape yang salah
-sebelum masuk training.
-"""
-
 import random
 import numpy as np
 import torch

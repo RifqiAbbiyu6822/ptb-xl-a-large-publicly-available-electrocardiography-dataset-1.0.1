@@ -1,12 +1,3 @@
-"""
-labels.py
-Loading metadata PTB-XL (ptbxl_database.csv + scp_statements.csv) dan
-konversi scp_codes -> multi-label (multi-hot) untuk 5 diagnostic superclass:
-NORM, MI, STTC, CD, HYP.
-
-Referensi resmi: physionet.org/content/ptb-xl -> contoh kode "aggregate_diagnostic"
-dari paper PTB-XL, di sini dibuat lebih eksplisit + ada validasi & statistik.
-"""
 
 import ast
 import os

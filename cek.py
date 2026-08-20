@@ -1,17 +1,3 @@
-"""
-check_chapman_amplitude.py
-Script standalone untuk sanity-check amplitudo sinyal Chapman-Shaoxing
-dibanding PTB-XL, SEBELUM dipakai untuk boost training. Jalankan ini dulu
-sebelum train.py --chapman_root ....
-
-Cara pakai:
-    python check_chapman_amplitude.py ^
-        --ptbxl_root "C:\\path\\ke\\ptb-xl" ^
-        --chapman_root "C:\\path\\ke\\folder\\chapman" ^
-        --chapman_csv "C:\\path\\ke\\dx_record_details.csv" ^
-        --n_samples 5
-"""
-
 import argparse
 import random
 

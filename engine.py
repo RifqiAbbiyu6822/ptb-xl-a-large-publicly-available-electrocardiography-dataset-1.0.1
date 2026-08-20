@@ -1,9 +1,3 @@
-"""
-engine.py
-Loop training/evaluasi per epoch. Dipisah dari train.py supaya train.py
-fokus ke orkestrasi (argparse, checkpoint, early stopping).
-"""
-
 import torch
 import numpy as np
 from tqdm import tqdm

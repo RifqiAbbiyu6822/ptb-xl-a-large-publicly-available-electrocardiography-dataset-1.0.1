@@ -1,10 +1,3 @@
-"""
-signal_ops.py
-Operasi-operasi sinyal ECG yang dijalankan ON-THE-FLY (dipanggil di dalam
-__getitem__ Dataset, tidak pernah menulis hasil olahan ke disk).
-
-Semua fungsi bekerja pada array numpy shape (n_leads, n_samples).
-"""
 
 import numpy as np
 from scipy.signal import butter, filtfilt

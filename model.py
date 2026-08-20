@@ -1,20 +1,3 @@
-"""
-model.py
-Arsitektur SE-ConvNeXt1D untuk klasifikasi multi-label sinyal ECG 12-lead.
-
-Terdiri dari:
-  - SEBlock1D        : Squeeze-and-Excitation untuk sinyal 1D (channel attention)
-  - LayerNorm1d       : LayerNorm yang bekerja di format (N, C, L) / channels-first
-  - DropPath          : stochastic depth regularization
-  - ConvNeXt1DBlock   : block ConvNeXt (depthwise conv -> LayerNorm -> inverted
-                         bottleneck MLP -> GELU) + SE block di akhir, residual connection
-  - ConvNeXt1DSE      : model lengkap (stem + 4 stage + head), output logits
-                         (dipakai dengan BCEWithLogitsLoss untuk multi-label)
-
-Input  : (batch, n_leads=12, length)
-Output : (batch, n_classes) -- logits, belum di-sigmoid
-"""
-
 import torch
 import torch.nn as nn
 

@@ -1,26 +1,3 @@
-"""
-chapman_dataset.py
-Loader sinyal Chapman-Shaoxing (.mat + .hea, format WFDB, satu folder,
-nama file = record_id) + PyTorch Dataset yang menerapkan preprocessing
-ON-THE-FLY YANG SAMA PERSIS dengan PTBXLDataset (bandpass filter, fix_length,
-normalisasi, augmentasi), supaya sample dari kedua dataset bisa digabung
-lewat ConcatDataset tanpa distribution shift dari preprocessing yang beda.
-
-PERINGATAN PENTING (unit fisik / mV):
-  Kita sudah tahu (lihat signal_ops.zscore_normalize_global) bahwa untuk HYP,
-  rasio & magnitude amplitudo ANTAR-LEAD itu informatif secara klinis. Ini
-  artinya konversi ADC -> unit fisik (mV) di sini HARUS BENAR -- kalau tidak,
-  data boost dari Chapman bisa punya skala amplitudo yang tidak konsisten
-  dengan PTB-XL (yang sudah di unit fisik lewat wfdb.rdsamp), dan MENCEMARI
-  training alih-alih membantu, apalagi untuk kelas yang paling sensitif
-  terhadap ini.
-
-  -> SELALU jalankan sanity_check_amplitude() di bawah dan bandingkan manual
-     dengan statistik amplitudo PTB-XL SEBELUM training sungguhan pakai data
-     boost ini. Kalau skalanya beda jauh (>10x), curigai gain/baseline di
-     .hea salah di-parse (format .hea vendor kadang punya variasi kecil).
-"""
-
 import os
 import re
 from math import gcd

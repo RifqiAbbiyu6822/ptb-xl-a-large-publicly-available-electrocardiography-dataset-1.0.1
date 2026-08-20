@@ -1,21 +1,3 @@
-"""
-chapman_labels.py
-Loading metadata Chapman-Shaoxing ECG dataset, dipakai sebagai data TAMBAHAN
-(boost) khusus kelas minoritas (default: HYP) di TRAIN SET PTB-XL saja.
-Val/test set tetap murni PTB-XL supaya hasil tetap bisa dibandingkan apple-to-apple
-dengan run-run sebelumnya.
-
-Asumsi format CSV metadata (`dx_record_details.csv` atau sejenis), minimal kolom:
-    record_id     -> nama file tanpa ekstensi (mis. "JS00001", cocok dengan
-                      JS00001.hea / JS00001.mat)
-    superclasses  -> daftar superclass diagnostik, format fleksibel:
-                      "['HYP']", "HYP;CD", "HYP,CD", dsb.
-
-Kalau format CSV kamu berbeda (mis. masih SNOMED-CT code mentah, bukan
-superclass), sesuaikan _parse_superclass_string() atau lakukan mapping
-SNOMED->superclass sebelum panggil load_chapman_metadata().
-"""
-
 import ast
 import pandas as pd
 

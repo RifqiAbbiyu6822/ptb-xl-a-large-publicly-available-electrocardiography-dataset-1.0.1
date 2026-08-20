@@ -1,7 +1,3 @@
-"""
-metrics.py
-Metrik evaluasi untuk klasifikasi multi-label (5 kelas: NORM, MI, STTC, CD, HYP).
-"""
 
 import numpy as np
 from sklearn.metrics import f1_score, roc_auc_score
