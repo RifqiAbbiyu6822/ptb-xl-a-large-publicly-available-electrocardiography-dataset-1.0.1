@@ -1,0 +1,27 @@
+# Cache & IDE
+__pycache__/
+*.pyc
+.refact/
+.qodo/
+
+# Datasets
+dataset/
+chapman_dataset/
+chapman_labels/
+WFDB_ShaoxingUniv/
+records500/
+records100/
+ptbxl_database/
+RECORDS
+SHA256SUMS
+
+# Model Weights & Checkpoints
+checkpoints/
+checkpoints_v4_boosted/
+checkpoints90/
+*.pth
+
+# Data Files & Misc
+*.xlsx
+*.csv
+files (2)/
