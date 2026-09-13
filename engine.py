@@ -44,7 +44,14 @@ def train_one_epoch(model, loader, optimizer, criterion, device,
 
 @torch.no_grad()
 def evaluate(model, loader, criterion, device, target_classes=None,
-             threshold: float = 0.5) -> dict:
+             threshold: float = 0.5, return_probs: bool = False):
+    """
+    return_probs=False (default) -> return metrics saja, seperti sebelumnya
+    (dipakai di val loop tiap epoch, tidak ada perubahan perilaku).
+    return_probs=True  -> return (metrics, all_probs, all_labels), dipakai
+    sekali di akhir untuk evaluasi test set + bahan visualisasi (confusion
+    matrix, ROC curve).
+    """
     model.eval()
     total_loss = 0.0
     all_probs, all_labels = [], []
@@ -66,4 +73,7 @@ def evaluate(model, loader, criterion, device, target_classes=None,
 
     metrics = compute_multilabel_metrics(all_labels, all_probs, threshold, target_classes)
     metrics["loss"] = total_loss / len(loader.dataset)
+
+    if return_probs:
+        return metrics, all_probs, all_labels
     return metrics

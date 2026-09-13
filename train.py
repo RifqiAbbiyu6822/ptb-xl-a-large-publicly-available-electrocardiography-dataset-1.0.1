@@ -3,6 +3,7 @@ import os
 import json
 import time
 
+import numpy as np
 import pandas as pd
 import torch
 
@@ -132,10 +133,202 @@ def parse_args():
                          "otomatis dari train_df supaya jumlah --boost_class sejajar RATA-RATA "
                          "jumlah kelas lain di train set (lihat chapman_labels.compute_boost_target).")
 
+    # --- Laporan akhir (JSON) untuk mengisi kalimat hasil di laporan/skripsi ---
+    p.add_argument("--baseline_metrics_json", type=str, default=None,
+                    help="Path ke test_metrics.json dari run BASELINE (mis. run tanpa boost "
+                         "Chapman, tanpa normalize_mode=global, dan/atau tanpa ASL). Kalau diisi, "
+                         "f1_HYP dari file ini dipakai sebagai pembanding 'sebelum' di train_report.json "
+                         "supaya klaim peningkatan F1 HYP bisa diisi otomatis. Kalau kosong, field "
+                         "baseline di laporan akan null dan perlu diisi manual.")
+
     # lain-lain
     p.add_argument("--output_dir", type=str, default="./checkpoints")
     p.add_argument("--seed", type=int, default=42)
     return p.parse_args()
+
+
+def build_train_report(test_metrics: dict, config: PTBXLConfig, args,
+                        baseline_f1_hyp: float = None) -> dict:
+    """
+    Susun ringkasan hasil training dalam format JSON yang siap dipakai untuk
+    mengisi kalimat laporan/skripsi:
+
+      "Hasil pengujian menunjukkan bahwa model SE-ConvNeXt1D mencapai macro-F1
+       sebesar [ISI] dan macro-AUROC sebesar [ISI] pada test set. Pada kelas
+       Hipertrofi (HYP), yang merupakan kelas minoritas dengan jumlah sampel
+       jauh lebih sedikit dibanding kelas lain di PTB-XL, kombinasi normalisasi
+       global, augmentasi data boost dari Chapman-Shaoxing, dan Asymmetric Loss
+       terbukti meningkatkan F1 kelas tersebut dari [ISI] (baseline) menjadi
+       [ISI]."
+
+    Semua angka dibulatkan 4 desimal (mengikuti format print di training loop).
+    baseline_f1_hyp : F1 HYP dari run baseline (opsional, lihat --baseline_metrics_json).
+                       Kalau None, field baseline di laporan tetap null dan HARUS diisi manual.
+    """
+    macro_f1 = round(float(test_metrics["macro_f1"]), 4)
+    macro_auroc = round(float(test_metrics["macro_auroc"]), 4)
+    f1_hyp_final = test_metrics.get("f1_HYP")
+    f1_hyp_final = round(float(f1_hyp_final), 4) if f1_hyp_final is not None else None
+
+    baseline_str = f"{baseline_f1_hyp:.4f}" if baseline_f1_hyp is not None else "[ISI]"
+    final_str = f"{f1_hyp_final:.4f}" if f1_hyp_final is not None else "[ISI]"
+
+    narrative_id = (
+        f"Hasil pengujian menunjukkan bahwa model SE-ConvNeXt1D mencapai macro-F1 "
+        f"sebesar {macro_f1:.4f} dan macro-AUROC sebesar {macro_auroc:.4f} pada test set. "
+        f"Pada kelas Hipertrofi (HYP), yang merupakan kelas minoritas dengan jumlah sampel "
+        f"jauh lebih sedikit dibanding kelas lain di PTB-XL, kombinasi normalisasi global, "
+        f"augmentasi data boost dari Chapman-Shaoxing, dan Asymmetric Loss terbukti "
+        f"meningkatkan F1 kelas tersebut dari {baseline_str} (baseline) menjadi {final_str}."
+    )
+
+    return {
+        "macro_f1": macro_f1,
+        "macro_auroc": macro_auroc,
+        "f1_HYP_baseline": (round(float(baseline_f1_hyp), 4) if baseline_f1_hyp is not None else None),
+        "f1_HYP_final": f1_hyp_final,
+        "f1_HYP_delta": (round(f1_hyp_final - baseline_f1_hyp, 4)
+                          if (baseline_f1_hyp is not None and f1_hyp_final is not None) else None),
+        "run_config": {
+            "loss_fn": args.loss_fn,
+            "use_sampler": args.use_sampler,
+            "normalize_mode": config.normalize_mode,
+            "use_lead_dropout": config.use_lead_dropout,
+            "lead_dropout_prob": config.lead_dropout_prob,
+            "chapman_boost_used": bool(args.chapman_root),
+            "boost_class": args.boost_class if args.chapman_root else None,
+            "model_variant": args.model_variant,
+        },
+        "narrative_id": narrative_id,
+        "note": (None if baseline_f1_hyp is not None else
+                 "f1_HYP_baseline tidak diisi karena --baseline_metrics_json tidak diberikan. "
+                 "Isi manual dari hasil run baseline (mis. bce/per_lead/no_sampler tanpa boost)."),
+    }
+
+
+def plot_training_history(history, output_dir):
+    """
+    Grafik train_loss vs val_loss, dan val_macro_f1 vs val_macro_auroc
+    per epoch. Disimpan sebagai training_curves.png di output_dir.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if not history:
+        print("[train] history kosong, skip plot_training_history")
+        return
+
+    epochs = [h["epoch"] for h in history]
+    train_loss = [h["train_loss"] for h in history]
+    val_loss = [h["loss"] for h in history]
+    macro_f1 = [h["macro_f1"] for h in history]
+    macro_auroc = [h["macro_auroc"] for h in history]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    axes[0].plot(epochs, train_loss, label="train_loss", marker="o", markersize=3)
+    axes[0].plot(epochs, val_loss, label="val_loss", marker="o", markersize=3)
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].set_title("Training vs Validation Loss")
+    axes[0].legend()
+    axes[0].grid(alpha=0.3)
+
+    axes[1].plot(epochs, macro_f1, label="val_macro_f1", marker="o", markersize=3)
+    axes[1].plot(epochs, macro_auroc, label="val_macro_auroc", marker="o", markersize=3)
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Score")
+    axes[1].set_title("Validation Macro-F1 & Macro-AUROC")
+    axes[1].set_ylim(0, 1)
+    axes[1].legend()
+    axes[1].grid(alpha=0.3)
+
+    fig.tight_layout()
+    out_path = os.path.join(output_dir, "training_curves.png")
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"[train] Grafik training curves disimpan: {out_path}")
+
+
+def plot_confusion_matrices(y_true, y_probs, threshold, target_classes, output_dir):
+    """
+    Confusion matrix per kelas (multi-label -> 1 confusion matrix biner
+    per kelas: aktif/tidak aktif). Disimpan sebagai confusion_matrices.png.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import multilabel_confusion_matrix
+
+    y_pred = (y_probs >= threshold).astype(int)
+    cms = multilabel_confusion_matrix(y_true, y_pred)
+
+    n = len(target_classes)
+    ncols = min(n, 5)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 4 * nrows))
+    axes = np.array(axes).reshape(-1)
+
+    for i, c in enumerate(target_classes):
+        cm = cms[i]  # [[TN, FP], [FN, TP]]
+        ax = axes[i]
+        ax.imshow(cm, cmap="Blues")
+        ax.set_title(f"{c}  (thr={threshold:.2f})")
+        ax.set_xlabel("Prediksi")
+        ax.set_ylabel("Aktual")
+        ax.set_xticks([0, 1]); ax.set_xticklabels(["Negatif", "Positif"])
+        ax.set_yticks([0, 1]); ax.set_yticklabels(["Negatif", "Positif"])
+        thresh_color = cm.max() / 2 if cm.max() > 0 else 0
+        for r in range(2):
+            for cc in range(2):
+                ax.text(cc, r, str(int(cm[r, cc])), ha="center", va="center",
+                        color="white" if cm[r, cc] > thresh_color else "black",
+                        fontsize=12, fontweight="bold")
+
+    for j in range(n, len(axes)):
+        fig.delaxes(axes[j])
+
+    fig.tight_layout()
+    out_path = os.path.join(output_dir, "confusion_matrices.png")
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"[train] Confusion matrix per kelas disimpan: {out_path}")
+
+
+def plot_roc_curves(y_true, y_probs, target_classes, output_dir):
+    """
+    ROC curve + AUC per kelas di test set. Kelas tanpa variasi label
+    (semua 0 atau semua 1 di test set) dilewati karena ROC tidak valid.
+    Disimpan sebagai roc_curves.png.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import roc_curve, auc
+
+    fig, ax = plt.subplots(figsize=(6.5, 6.5))
+    for i, c in enumerate(target_classes):
+        col = y_true[:, i]
+        if col.sum() == 0 or col.sum() == len(col):
+            print(f"[train] Skip ROC {c}: tidak ada variasi label positif/negatif di test set")
+            continue
+        fpr, tpr, _ = roc_curve(col, y_probs[:, i])
+        roc_auc = auc(fpr, tpr)
+        ax.plot(fpr, tpr, label=f"{c} (AUC={roc_auc:.3f})")
+
+    ax.plot([0, 1], [0, 1], "k--", alpha=0.4, label="Random")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("ROC Curve per Kelas (Test Set)")
+    ax.legend(loc="lower right")
+    ax.grid(alpha=0.3)
+
+    fig.tight_layout()
+    out_path = os.path.join(output_dir, "roc_curves.png")
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"[train] ROC curve disimpan: {out_path}")
 
 
 def main():
@@ -314,13 +507,45 @@ def main():
     ckpt = torch.load(os.path.join(args.output_dir, "best_model.pt"),
                        map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
-    test_metrics = evaluate(model, test_loader, criterion, device,
-                             target_classes=config.target_classes,
-                             threshold=args.threshold)
+
+    # return_probs=True -> juga dapat probs & labels mentah untuk visualisasi
+    test_metrics, test_probs, test_labels = evaluate(
+        model, test_loader, criterion, device,
+        target_classes=config.target_classes,
+        threshold=args.threshold, return_probs=True,
+    )
     print(json.dumps(test_metrics, indent=2))
 
     with open(os.path.join(args.output_dir, "test_metrics.json"), "w") as f:
         json.dump(test_metrics, f, indent=2)
+
+    # --- 6. Laporan JSON siap-pakai untuk mengisi kalimat hasil di laporan/skripsi ---
+    baseline_f1_hyp = None
+    if args.baseline_metrics_json:
+        if os.path.exists(args.baseline_metrics_json):
+            with open(args.baseline_metrics_json, "r") as f:
+                baseline_metrics = json.load(f)
+            baseline_f1_hyp = baseline_metrics.get("f1_HYP")
+            if baseline_f1_hyp is None:
+                print(f"[train] PERINGATAN: '{args.baseline_metrics_json}' tidak punya key "
+                      f"'f1_HYP', baseline di train_report.json akan null")
+        else:
+            print(f"[train] PERINGATAN: --baseline_metrics_json '{args.baseline_metrics_json}' "
+                  f"tidak ditemukan, baseline di train_report.json akan null")
+
+    train_report = build_train_report(test_metrics, config, args, baseline_f1_hyp=baseline_f1_hyp)
+    with open(os.path.join(args.output_dir, "train_report.json"), "w") as f:
+        json.dump(train_report, f, indent=2, ensure_ascii=False)
+
+    print("\n=== Ringkasan laporan (train_report.json) ===")
+    print(json.dumps(train_report, indent=2, ensure_ascii=False))
+
+    # --- 7. Visualisasi hasil training & evaluasi ---
+    print("\n=== Membuat visualisasi hasil (training curves, confusion matrix, ROC) ===")
+    plot_training_history(history, args.output_dir)
+    plot_confusion_matrices(test_labels, test_probs, args.threshold,
+                             config.target_classes, args.output_dir)
+    plot_roc_curves(test_labels, test_probs, config.target_classes, args.output_dir)
 
 
 if __name__ == "__main__":

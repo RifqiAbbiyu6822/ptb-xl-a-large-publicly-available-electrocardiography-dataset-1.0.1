@@ -49,14 +49,19 @@ SPIKE_WINDOW_SEC = 0.16
 SPIKE_MIN_DISTANCE_SEC = 0.15
 SPIKES_PER_LABEL = 5
 
-MODEL_PATH = "checkpoints/best_model.pt"
-THRESHOLDS_PATH = "checkpoints/best_thresholds.json"
+MODEL_PATH = "checkpoints/full_run/best_model.pt"
+THRESHOLDS_PATH = "checkpoints/full_run/best_thresholds.json"
 
 LEAD_NAMES = ["I", "II", "III", "aVR", "aVL", "aVF",
               "V1", "V2", "V3", "V4", "V5", "V6"]
 
+PAGE_TITLE = "Klasifikasi Multi-Label Kondisi Kardiovaskular EKG 12-Lead"
+HERO_TITLE = "Klasifikasi Multi-Label Kondisi Kardiovaskular pada Sinyal EKG 12-Lead"
+HERO_SUBTITLE = "ConvNeXt-1D dengan Squeeze-and-Excitation · Analisis rekaman EKG 12-lead"
+HERO_EYEBROW = "Sistem Bantu Diagnostik"
+
 st.set_page_config(
-    page_title="ECG Multi-Label Diagnosis",
+    page_title=PAGE_TITLE,
     page_icon=":anatomical_heart:",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -74,13 +79,30 @@ def render_ecg_trace(extra_class=""):
         f'</svg></div>'
     )
 
+# ---------------------------------------------------------------------------
+# Design tokens
+#
+#   Background   #0A0C10 / #101319 / #151920 / #1B2029  (neutral, not tinted)
+#   Border       rgba(255,255,255,.07) / rgba(255,255,255,.14)
+#   Text         #EAEDF1 / #8B93A1 / #5B6270
+#   Accent       #4F8EF7  (single calm clinical blue — used sparingly)
+#   Type         Inter (UI) + JetBrains Mono (data / metrics)
+#
+# The layout uses a fluid, generously gutter width instead of a fixed narrow
+# centered column, and motion is limited to one signature element (the ECG
+# trace) plus quiet, functional transitions elsewhere.
+# ---------------------------------------------------------------------------
+
 CUSTOM_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg-0: #0B0F14; --bg-1: #11161D; --bg-2: #161D26; --bg-3: #1B232E;
-  --border: rgba(255,255,255,0.08); --text-1: #E8EDF2; --text-2: #8B97A6;
-  --accent: #26C6DA; --accent-2: #7C3AED;
+  --bg-0: #0A0C10; --bg-1: #101319; --bg-2: #151920; --bg-3: #1B2029;
+  --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.14);
+  --text-1: #EAEDF1; --text-2: #8B93A1; --text-3: #5B6270;
+  --accent: #4F8EF7; --accent-soft: rgba(79,142,247,0.12);
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --gutter: clamp(20px, 4vw, 64px);
 }
 
 html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -88,97 +110,120 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystem
 #MainMenu, header[data-testid="stHeader"], footer { visibility: hidden; height: 0; }
 section[data-testid="stSidebar"] { display: none !important; }
 
-.block-container { max-width: 1100px !important; padding-top: 1.6rem !important; padding-bottom: 3rem !important; }
-
-.wide-plot-stage { width: 100%; overflow-x: auto; border-radius: 14px; border: 1px solid var(--border);
-  background: var(--bg-2); padding: 6px 6px 2px 6px; }
-.wide-plot-stage::-webkit-scrollbar { height: 10px; }
-.wide-plot-stage::-webkit-scrollbar-track { background: var(--bg-1); border-radius: 6px; }
-.wide-plot-stage::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 6px; opacity: 0.6; }
-.wide-plot-hint { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12px;
-  margin: 6px 2px 12px 2px; }
-.wide-plot-hint svg { opacity: 0.7; }
-
-.metric-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+/* Wide, gutter-based layout instead of a fixed narrow centered column */
+.block-container {
+  max-width: min(1440px, 94vw) !important;
+  padding-top: 2.2rem !important;
+  padding-bottom: 4rem !important;
+  padding-left: var(--gutter) !important;
+  padding-right: var(--gutter) !important;
+}
 
 .stApp {
   background:
-    radial-gradient(circle at 12% 8%, rgba(38,198,218,0.07), transparent 42%),
-    radial-gradient(circle at 88% 92%, rgba(124,58,237,0.06), transparent 42%),
-    repeating-linear-gradient(0deg, rgba(38,198,218,0.035) 0px, rgba(38,198,218,0.035) 1px, transparent 1px, transparent 28px),
-    repeating-linear-gradient(90deg, rgba(38,198,218,0.035) 0px, rgba(38,198,218,0.035) 1px, transparent 1px, transparent 28px),
+    radial-gradient(ellipse 1100px 460px at 50% -8%, rgba(79,142,247,0.05), transparent 60%),
     var(--bg-0);
   background-attachment: fixed;
 }
 
-h1 { font-weight: 800 !important; letter-spacing: -0.03em !important; background: linear-gradient(135deg, #E8EDF2 0%, #26C6DA 120%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 2px !important; }
-h2, h3 { font-weight: 700 !important; letter-spacing: -0.02em !important; color: var(--text-1) !important; }
+.wide-plot-stage { width: 100%; overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--border);
+  background: var(--bg-2); padding: 6px 6px 2px 6px; }
+.wide-plot-stage::-webkit-scrollbar { height: 8px; }
+.wide-plot-stage::-webkit-scrollbar-track { background: var(--bg-1); border-radius: 6px; }
+.wide-plot-stage::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+.wide-plot-hint { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px;
+  margin: 8px 2px 14px 2px; }
+.wide-plot-hint svg { opacity: 0.8; }
+
+.metric-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+
+h1 { font-weight: 700 !important; letter-spacing: -0.02em !important; color: var(--text-1) !important;
+  font-size: 1.9rem !important; margin-bottom: 4px !important; }
+h2, h3 { font-weight: 600 !important; letter-spacing: -0.01em !important; color: var(--text-1) !important; }
 .stCaption, [data-testid="stCaptionContainer"] { color: var(--text-2) !important; }
 
-.hero { padding-top: 2px; }
-.hero-heart { display: inline-block; animation: heartbeat 2.1s ease-in-out infinite; transform-origin: 50% 60%; }
-.hero-sub { color: var(--text-2); font-size: 14.5px; margin: 2px 0 14px 0; }
+.hero { padding-bottom: 22px; margin-bottom: 26px; border-bottom: 1px solid var(--border); }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.hero-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft); }
+.hero-sub { color: var(--text-2); font-size: 14.5px; margin: 0; font-weight: 400; }
 
-.ecg-trace-wrap { width: 100%; height: 46px; overflow: hidden; margin: 0 0 22px 0; opacity: 0.9;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
-.ecg-trace-svg { width: 100%; height: 46px; display: block; }
-.ecg-trace-path { stroke: var(--accent); stroke-width: 2.2; filter: drop-shadow(0 0 6px rgba(38,198,218,0.55));
-  animation: ecgScroll 6.5s linear infinite; }
-.ecg-trace-wrap.dim .ecg-trace-path { stroke: #7C3AED; filter: drop-shadow(0 0 6px rgba(124,58,237,0.55)); }
+.ecg-trace-wrap { width: 100%; height: 32px; overflow: hidden; margin: 18px 0 0 0; opacity: 0.5;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.ecg-trace-svg { width: 100%; height: 32px; display: block; }
+.ecg-trace-path { stroke: var(--accent); stroke-width: 1.6; animation: ecgScroll 9s linear infinite; }
+.ecg-trace-wrap.dim { opacity: 0.24; margin-top: 4px; }
 
-.stButton > button { border-radius: 10px; font-weight: 600; border: 1px solid var(--border); transition: all 0.18s cubic-bezier(.22,.85,.32,1); }
-.stButton > button[kind="primary"] { background: linear-gradient(135deg, #26C6DA 0%, #1E88E5 100%); border: none; box-shadow: 0 4px 14px rgba(38,198,218,0.25); }
-.stButton > button[kind="primary"]:hover { box-shadow: 0 6px 22px rgba(38,198,218,0.45); transform: translateY(-1px); }
-.stButton > button[kind="primary"]:active { transform: translateY(0); }
+.stButton > button { border-radius: var(--radius-sm); font-weight: 600; border: 1px solid var(--border);
+  transition: background .15s ease, border-color .15s ease; }
+.stButton > button[kind="primary"] { background: var(--accent); border: none; color: #fff; }
+.stButton > button[kind="primary"]:hover { background: #3E7AE0; }
+.stButton > button[kind="secondary"]:hover { border-color: var(--border-strong); }
 .stTextInput input, .stNumberInput input, .stSelectbox [data-baseweb="select"] {
-  border-radius: 8px !important; background: var(--bg-2) !important; border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important; background: var(--bg-2) !important; border: 1px solid var(--border) !important;
   transition: border-color .15s ease, box-shadow .15s ease; }
-.stTextInput input:focus, .stNumberInput input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(38,198,218,0.18) !important; }
+.stTextInput input:focus, .stNumberInput input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-soft) !important; }
 :focus-visible { outline: 2px solid var(--accent) !important; outline-offset: 2px; }
 
-.glass-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; backdrop-filter: blur(8px); }
-.pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(38,198,218,0.12); color: #26C6DA; border: 1px solid rgba(38,198,218,0.25); }
+.panel { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px 28px; }
+.panel-title { font-size: 15px; font-weight: 600; color: var(--text-1); margin: 0 0 2px 0; }
+.panel-hint { font-size: 12.5px; color: var(--text-2); margin: 0 0 18px 0; }
 
-.dx-card { position: relative; border-radius: 16px; padding: 18px 14px 16px 14px; text-align: center; overflow: hidden;
-  transition: transform 0.22s cubic-bezier(.22,.85,.32,1), box-shadow 0.22s cubic-bezier(.22,.85,.32,1); }
-.dx-card:hover { transform: translateY(-4px) scale(1.015); }
-.dx-label { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; color: #FFFFFF; margin-bottom: 1px; }
-.dx-sublabel { font-size: 10.5px; font-weight: 500; color: rgba(255,255,255,0.75); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-.dx-ring { width: 96px; height: 96px; margin: 2px auto 2px auto; display: block; }
-.dx-ring-text { font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; fill: #FFFFFF; }
-.dx-thr { margin-top: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.7); }
-.dx-badge { position: absolute; top: 10px; right: 10px; width: 9px; height: 9px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.9); }
+.pill { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 6px; font-size: 11.5px;
+  font-weight: 500; background: var(--bg-2); color: var(--text-2); border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace; }
 
-.legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
-  background: var(--bg-2); border: 1px solid var(--border); color: var(--text-1); margin-right: 8px; margin-bottom: 8px;
-  transition: transform .15s ease, border-color .15s ease; }
-.legend-chip:hover { transform: translateY(-1px); border-color: var(--accent); }
-.legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+/* Diagnosis result cards: neutral surface, colored top rule + ring identify the class */
+.dx-card { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center;
+  border-radius: var(--radius-md); padding: 20px 12px 16px 12px; background: var(--bg-2);
+  border: 1px solid var(--border); overflow: hidden;
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease; }
+.dx-card:hover { transform: translateY(-2px); }
+.dx-card.active { border-color: var(--dx-color); background: var(--bg-3); }
+.dx-top-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--dx-color); opacity: 0; }
+.dx-card.active .dx-top-bar { opacity: 1; }
+.dx-label { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-1); margin-bottom: 1px; }
+.dx-sublabel { font-size: 10.5px; font-weight: 500; color: var(--text-2); text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 6px; }
+.dx-ring { width: 84px; height: 84px; margin: 2px auto 4px auto; display: block; }
+.dx-ring-text { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600; fill: var(--text-1); }
+.dx-thr { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-3); margin-bottom: 8px; }
+.dx-status { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; padding: 3px 10px; border-radius: 999px; }
 
-.step-card { display: flex; flex-direction: column; }
-.step-next { margin-top: 10px; color: var(--accent); font-size: 13px; font-weight: 700; text-align: right; opacity: 0.85; }
+.legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--text-2); margin-right: 8px; margin-bottom: 8px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
-.scan-banner { margin: 6px 0 22px 0; }
-.scan-track { position: relative; height: 10px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
-.scan-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: width .45s cubic-bezier(.22,.85,.32,1); position: relative; overflow: hidden; }
-.scan-fill::after { content: ""; position: absolute; inset: 0; width: 40%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
-  animation: shimmerSlide 1.3s ease-in-out infinite; }
-.scan-label { margin-top: 8px; font-size: 12.5px; color: var(--text-2); font-family: 'JetBrains Mono', monospace; letter-spacing: .02em; }
+/* Landing "how it works" — a real ordered sequence, so numbering carries meaning */
+.step-card { border-top: 2px solid var(--border); padding-top: 14px; }
+.step-num { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); letter-spacing: 0.05em; }
+.step-title { font-size: 14.5px; font-weight: 600; color: var(--text-1); margin: 6px 0 4px 0; }
+.step-desc { font-size: 12.5px; color: var(--text-2); line-height: 1.55; margin: 0; }
 
-div[data-testid="stExpander"] { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; }
-div[data-testid="stTabs"] button[role="tab"] { font-weight: 600; transition: color .15s ease; }
+.scan-banner { margin: 4px 0 22px 0; }
+.scan-track { position: relative; height: 4px; border-radius: 999px; background: var(--bg-3); overflow: hidden; }
+.scan-fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width .4s ease; }
+.scan-label { margin-top: 10px; font-size: 12.5px; color: var(--text-2); font-family: 'JetBrains Mono', monospace; letter-spacing: .01em; }
+
+div[data-testid="stExpander"] { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-md); }
+div[data-testid="stTabs"] button[role="tab"] { font-weight: 500; color: var(--text-2); }
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { color: var(--text-1); font-weight: 600; }
+div[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: var(--accent) !important; }
+div[data-testid="stTabs"] [data-baseweb="tab-border"] { background-color: var(--border) !important; }
 hr { border-color: var(--border) !important; }
 
-.fade-in-up { animation: fadeInUp 0.5s cubic-bezier(.22,.85,.32,1) both; }
+.fade-in-up { animation: fadeInUp 0.4s cubic-bezier(.22,.85,.32,1) both; }
 
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes heartbeat { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.18); } 28% { transform: scale(1); } 42% { transform: scale(1.12); } 70% { transform: scale(1); } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ecgScroll { from { transform: translateX(0); } to { transform: translateX(-1200px); } }
-@keyframes shimmerSlide { 0% { transform: translateX(-130%); } 100% { transform: translateX(280%); } }
-@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.0); } 50% { box-shadow: 0 0 0 6px rgba(255,255,255,0.18); } }
+
+@media (max-width: 680px) {
+  :root { --gutter: 16px; }
+  .block-container { padding-top: 1.4rem !important; }
+  .panel { padding: 18px 18px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -458,49 +503,55 @@ def find_top_spikes(activity, t_axis, n_spikes, min_distance_sec=SPIKE_MIN_DISTA
     return sorted(chosen)
 
 def render_diagnosis_ring(color, prob, threshold, active, index):
-    r = 32
+    r = 30
     circumference = 2 * math.pi * r
     target_offset = circumference * (1 - max(0.0, min(1.0, prob)))
-    entrance_delay = index * 0.09
-    ring_delay = entrance_delay + 0.15
+    entrance_delay = index * 0.06
+    ring_delay = entrance_delay + 0.1
 
-    opacity = "1" if active else "0.32"
-    box_shadow = f"0 10px 28px {color}55" if active else "none"
-    border = f"1px solid {color}" if active else "1px solid var(--border)"
-    badge = (
-        f'<div class="dx-badge" style="background:{color}; animation: pulseGlow 1.8s ease-in-out infinite;"></div>'
-        if active else ""
+    card_class = "dx-card active" if active else "dx-card"
+    ring_opacity = "1" if active else "0.4"
+    status_html = (
+        f'<span class="dx-status" style="background:{color}22; color:{color};">Aktif</span>'
+        if active else
+        '<span class="dx-status" style="background:var(--bg-3); color:var(--text-3);">Tidak aktif</span>'
     )
 
     return f"""
     <style>@keyframes ringFill{index} {{ to {{ stroke-dashoffset: {target_offset:.2f}; }} }}</style>
-    <div class="dx-card fade-in-up" style="animation-delay:{entrance_delay:.2f}s;
-         background: linear-gradient(160deg, {color}E6 0%, {color}99 100%);
-         opacity:{opacity}; border:{border}; box-shadow:{box_shadow};">
-      {badge}
+    <div class="{card_class} fade-in-up" style="animation-delay:{entrance_delay:.2f}s; --dx-color:{color};">
+      <div class="dx-top-bar"></div>
       <div class="dx-label">{CLASSES[index]}</div>
       <div class="dx-sublabel">{CLASS_LABELS_LONG[CLASSES[index]]}</div>
-      <svg viewBox="0 0 80 80" class="dx-ring">
-        <circle cx="40" cy="40" r="{r}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="7"></circle>
-        <circle cx="40" cy="40" r="{r}" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"
+      <svg viewBox="0 0 76 76" class="dx-ring">
+        <circle cx="38" cy="38" r="{r}" fill="none" stroke="var(--bg-3)" stroke-width="6"></circle>
+        <circle cx="38" cy="38" r="{r}" fill="none" stroke="{color}" stroke-width="6" stroke-linecap="round"
           stroke-dasharray="{circumference:.2f}" stroke-dashoffset="{circumference:.2f}"
-          transform="rotate(-90 40 40)"
-          style="animation: ringFill{index} 1s {ring_delay:.2f}s cubic-bezier(.22,.85,.32,1) forwards;"></circle>
-        <text x="40" y="46" text-anchor="middle" class="dx-ring-text">{prob*100:.0f}%</text>
+          transform="rotate(-90 38 38)" style="opacity:{ring_opacity};
+          animation: ringFill{index} 0.9s {ring_delay:.2f}s cubic-bezier(.22,.85,.32,1) forwards;"></circle>
+        <text x="38" y="44" text-anchor="middle" class="dx-ring-text">{prob*100:.0f}%</text>
       </svg>
       <div class="dx-thr">ambang {threshold:.2f}</div>
+      {status_html}
     </div>
     """
 
 st.markdown(
-    '<div class="hero"><h1>Diagnosis Multi-Label EKG</h1>'
-    '<p class="hero-sub">Klasifikasi ConvNeXt-1D + Squeeze-and-Excitation</p></div>',
+    f'<div class="hero">'
+    f'<span class="hero-eyebrow"><span class="dot"></span>{HERO_EYEBROW}</span>'
+    f'<h1>{HERO_TITLE}</h1>'
+    f'<p class="hero-sub">{HERO_SUBTITLE}</p>'
+    f'{render_ecg_trace()}'
+    f'</div>',
     unsafe_allow_html=True,
 )
-st.markdown(render_ecg_trace(), unsafe_allow_html=True)
 
-st.markdown('<div class="glass-card fade-in-up">', unsafe_allow_html=True)
-st.markdown("##### Unggah Rekaman EKG")
+st.markdown('<div class="panel fade-in-up">', unsafe_allow_html=True)
+st.markdown('<p class="panel-title">Unggah Rekaman EKG 12-Lead</p>', unsafe_allow_html=True)
+st.markdown(
+    '<p class="panel-hint">Pilih format berkas, unggah rekaman, lalu jalankan klasifikasi.</p>',
+    unsafe_allow_html=True,
+)
 
 input_format = st.radio(
     "Format file", ["WFDB (.hea + .dat)", "MATLAB (.mat)"],
@@ -521,7 +572,7 @@ else:
         hea_file = st.file_uploader(".hea (header, opsional)", type=["hea"])
     dat_file = None
 
-run_btn = st.button("Jalankan Diagnosis", type="primary", use_container_width=True)
+run_btn = st.button("Jalankan Klasifikasi", type="primary", use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 if run_btn:
@@ -553,7 +604,7 @@ if run_btn:
             unsafe_allow_html=True,
         )
 
-    show_progress("Reading record…", 12)
+    show_progress("Membaca rekaman…", 12)
     try:
         if input_format == "WFDB (.hea + .dat)":
             raw_signal, fs, sig_names = read_wfdb_record(
@@ -570,13 +621,13 @@ if run_btn:
         st.error(f"Gagal membaca rekaman: {e}")
         st.stop()
 
-    show_progress("Mapping 12-lead layout…", 30)
+    show_progress("Memetakan tata letak 12-lead…", 30)
     leads_12, found_leads = prepare_leads(raw_signal, sig_names)
     missing = [l for l in LEAD_NAMES if l not in found_leads]
     if missing:
         st.warning(f"Lead yang hilang diisi nol: {', '.join(missing)}")
 
-    show_progress("Loading model weights…", 48)
+    show_progress("Memuat bobot model…", 48)
     try:
         model, ptb_config = load_model_and_config(MODEL_PATH, device)
     except Exception as e:
@@ -587,12 +638,12 @@ if run_btn:
     show_progress("Resampling, filtering & normalisasi sinyal…", 70)
     model_input, resampled = build_model_input(leads_12, fs, ptb_config)
 
-    show_progress("Running inference…", 92)
+    show_progress("Menjalankan inferensi ConvNeXt-1D + SE…", 92)
     probs = run_inference(model, model_input, device)
 
-    show_progress("Done", 100)
+    show_progress("Selesai", 100)
     progress_ph.empty()
-    st.toast("Diagnosis selesai")
+    st.toast("Klasifikasi selesai")
 
     thresholds = load_thresholds(THRESHOLDS_PATH)
 
@@ -610,12 +661,10 @@ if run_btn:
         unsafe_allow_html=True,
     )
 
-    st.write("")
-
-    tab_dx, tab_signal, tab_prob = st.tabs(["Diagnosis", "Sinyal 12-Lead", "Probabilitas"])
+    tab_dx, tab_signal, tab_prob = st.tabs(["Klasifikasi", "Sinyal 12-Lead", "Probabilitas"])
 
     with tab_dx:
-        st.markdown("### Papan Diagnosis")
+        st.markdown("### Hasil Klasifikasi Multi-Label")
         cols = st.columns(len(CLASSES))
         for i, c in enumerate(CLASSES):
             with cols[i]:
@@ -815,27 +864,25 @@ else:
     st.write("")
     p1, p2, p3, p4 = st.columns(4)
     steps = [
-        ("1", "Unggah", "File .dat atau .mat, .hea wajib untuk WFDB."),
-        ("2", "Praproses", "Sinyal dipetakan ke 12 lead, di-resample, difilter, dan dinormalisasi persis seperti saat training."),
-        ("3", "Prediksi", "ConvNeXt-1D + SE menghasilkan probabilitas per label."),
-        ("4", "Diagnosis", "Ambang batas tersimpan menentukan label yang aktif."),
+        ("01", "Unggah", "File .dat atau .mat, .hea wajib untuk WFDB."),
+        ("02", "Praproses", "Sinyal dipetakan ke 12 lead, di-resample, difilter, dan dinormalisasi persis seperti saat training."),
+        ("03", "Klasifikasi", "ConvNeXt-1D + Squeeze-and-Excitation menghasilkan probabilitas per kelas kondisi kardiovaskular."),
+        ("04", "Hasil", "Ambang batas tersimpan menentukan label mana saja yang aktif (multi-label)."),
     ]
     for idx, (col, (num, title, desc)) in enumerate(zip([p1, p2, p3, p4], steps)):
         with col:
-            next_hint = '<div class="step-next">selanjutnya →</div>' if idx < 3 else ''
             st.markdown(
-                f'<div class="glass-card step-card fade-in-up" style="animation-delay:{idx*0.1:.2f}s; min-height:160px;">'
-                f'<div class="pill">Langkah {num}</div>'
-                f'<h4 style="margin:10px 0 6px 0;">{title}</h4>'
-                f'<span style="color:var(--text-2); font-size:13.5px;">{desc}</span>'
-                f'{next_hint}'
+                f'<div class="step-card fade-in-up" style="animation-delay:{idx*0.06:.2f}s;">'
+                f'<div class="step-num">{num}</div>'
+                f'<div class="step-title">{title}</div>'
+                f'<p class="step-desc">{desc}</p>'
                 '</div>',
                 unsafe_allow_html=True,
             )
 
     st.write("")
     st.markdown(render_ecg_trace("dim"), unsafe_allow_html=True)
-    st.markdown("##### Legenda label")
+    st.markdown("##### Legenda Kelas Kondisi Kardiovaskular")
     legend_html = "".join(
         f'<span class="legend-chip"><span class="legend-dot" style="background:{CLASS_COLORS[c]}"></span>{c} — {CLASS_LABELS_LONG[c]}</span>'
         for c in CLASSES
