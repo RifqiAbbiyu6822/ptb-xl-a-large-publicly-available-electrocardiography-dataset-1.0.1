@@ -1,4 +1,5 @@
 import argparse
+import os
 import random
 
 import wfdb
@@ -28,7 +29,6 @@ def main():
 
     ptbxl_stds = []
     for _, row in ptbxl_sample_rows.iterrows():
-        import os
         path = os.path.join(args.ptbxl_root, row["filename_lr"])
         sig, meta = wfdb.rdsamp(path)
         print(f"  {row.name}: fs={meta['fs']}Hz  shape={sig.shape}  "
@@ -39,7 +39,7 @@ def main():
     ptbxl_avg_std = sum(ptbxl_stds) / len(ptbxl_stds)
     print(f"\n  Rata-rata std PTB-XL: {ptbxl_avg_std:.4f}")
 
-    print("\n=== 2. Statistik amplitudo Chapman-Shaoxing ===")
+    print("\n=== 2. Statistik amplitudo Chapman-Shaoxing (format CSV baru, via hea_path) ===")
     chapman_df = load_chapman_metadata(args.chapman_csv, ["NORM", "MI", "STTC", "CD", "HYP"])
     hyp_rows = chapman_df[chapman_df["HYP"] == 1]
     if len(hyp_rows) == 0:
@@ -50,18 +50,19 @@ def main():
     chapman_stds = []
     for _, row in sample_rows.iterrows():
         record_id = row["record_id"]
+        hea_path = row["hea_path"]
         try:
-            signal, fs = load_chapman_record(record_id, args.chapman_root)
+            signal, fs = load_chapman_record(hea_path, args.chapman_root)
         except Exception as e:
-            print(f"  [ERROR] Gagal load {record_id}: {e}")
+            print(f"  [ERROR] Gagal load {record_id} ({hea_path}): {e}")
             continue
-        print(f"  {record_id}: fs={fs}Hz  shape={signal.shape}  "
+        print(f"  {record_id} ({hea_path}): fs={fs}Hz  shape={signal.shape}  "
               f"mean={signal.mean():.4f}  std={signal.std():.4f}  "
               f"min={signal.min():.4f}  max={signal.max():.4f}")
         chapman_stds.append(signal.std())
 
     if not chapman_stds:
-        print("\n  [ERROR] Tidak ada record Chapman yang berhasil di-load. Cek path/nama file.")
+        print("\n  [ERROR] Tidak ada record Chapman yang berhasil di-load. Cek hea_path/struktur folder.")
         return
 
     chapman_avg_std = sum(chapman_stds) / len(chapman_stds)

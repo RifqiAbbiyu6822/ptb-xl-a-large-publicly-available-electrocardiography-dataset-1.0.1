@@ -43,7 +43,9 @@ def _parse_signal_line(line: str) -> dict:
 
 
 def parse_hea(hea_path: str) -> dict:
-    """Parse file .hea WFDB secara manual (header line + N baris sinyal)."""
+    """Parse file .hea WFDB secara manual (header line + N baris sinyal).
+    hea_path di sini adalah path FULL/absolut (sudah digabung dengan
+    chapman_root oleh pemanggil), bukan path relatif dari CSV."""
     with open(hea_path, "r") as f:
         lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
 
@@ -59,18 +61,59 @@ def parse_hea(hea_path: str) -> dict:
             "n_samples": n_samples, "signal_specs": signal_specs}
 
 
-def load_chapman_record(record_id: str, chapman_root: str) -> tuple:
+def _extract_filename(path_str: str) -> str:
     """
-    Baca 1 record Chapman (.hea + .mat). Return:
+    Ambil komponen NAMA FILE saja dari sebuah path string, aman terhadap
+    backslash Windows ('\\') maupun forward-slash Unix ('/'), dan tidak
+    peduli OS apa yang sedang menjalankan kode ini.
+
+    Dibutuhkan karena kolom 'hea_path' di CSV (chapman_labels_snomed.csv)
+    berisi path ABSOLUT dari mesin tempat CSV itu dibuat, misalnya:
+      'C:\\Users\\imneo\\...\\WFDB_ShaoxingUniv\\JS00001.hea'
+    Path absolut semacam ini tidak portable -- kalau CSV dipakai di mesin
+    lain (atau --chapman_root beda dari saat CSV dibuat), path itu tidak
+    akan valid. Karena struktur folder Chapman-Shaoxing di sini flat (semua
+    file .hea/.mat langsung di satu folder, dan basename-nya SELALU persis
+    '<record_id>.hea'), yang benar-benar dibutuhkan cuma nama filenya --
+    lalu digabung ulang dengan --chapman_root milik pemanggil saat ini.
+    """
+    normalized = path_str.replace("\\", "/")
+    return normalized.rsplit("/", 1)[-1]
+
+
+def load_chapman_record(hea_path: str, chapman_root: str) -> tuple:
+    """
+    Baca 1 record Chapman (.hea + .mat). 'hea_path' adalah nilai kolom
+    'hea_path' dari CSV metadata (chapman_labels_snomed.csv) -- BISA berupa
+    path absolut dari mesin lain (lihat _extract_filename). Hanya nama
+    filenya yang dipakai, digabung dengan chapman_root milik pemanggil saat
+    ini supaya tetap portable lintas mesin/environment.
+
+    File .mat diasumsikan berada di folder chapman_root yang SAMA, dengan
+    basename yang SAMA persis dengan .hea, hanya beda ekstensi
+    ('.mat' menggantikan '.hea').
+
+    Return:
       signal : (n_leads, n_samples) float32, SUDAH dikonversi ke unit fisik (mV)
                dan SUDAH di-reorder ke STANDARD_LEAD_ORDER
       fs     : sampling rate asli file (Hz)
     """
-    hea_path = os.path.join(chapman_root, record_id + ".hea")
-    mat_path = os.path.join(chapman_root, record_id + ".mat")
+    filename = _extract_filename(hea_path)
+    full_hea_path = os.path.join(chapman_root, filename)
+    full_mat_path = os.path.splitext(full_hea_path)[0] + ".mat"
 
-    meta = parse_hea(hea_path)
-    mat = loadmat(mat_path)
+    if not os.path.exists(full_hea_path):
+        raise FileNotFoundError(
+            f"[chapman_dataset] File .hea tidak ditemukan: {full_hea_path} "
+            f"(dari kolom hea_path='{hea_path}', chapman_root='{chapman_root}'). "
+            "Pastikan --chapman_root menunjuk ke folder yang berisi file .hea/.mat "
+            "secara flat (bukan path lama dari CSV)."
+        )
+    if not os.path.exists(full_mat_path):
+        raise FileNotFoundError(f"[chapman_dataset] File .mat tidak ditemukan: {full_mat_path}")
+
+    meta = parse_hea(full_hea_path)
+    mat = loadmat(full_mat_path)
     sig_key = "val" if "val" in mat else next(k for k in mat.keys() if not k.startswith("__"))
     raw = mat[sig_key].astype(np.float64)
     if raw.shape[0] != meta["n_sig"] and raw.shape[1] == meta["n_sig"]:
@@ -86,7 +129,7 @@ def load_chapman_record(record_id: str, chapman_root: str) -> tuple:
     idx_map = {name: i for i, name in enumerate(lead_names)}
     missing = [l for l in STANDARD_LEAD_ORDER if l not in idx_map]
     if missing:
-        raise ValueError(f"[chapman_dataset] Record {record_id}: lead hilang di header: {missing} "
+        raise ValueError(f"[chapman_dataset] Record '{hea_path}': lead hilang di header: {missing} "
                           f"(lead tersedia: {lead_names})")
     order_idx = [idx_map[l] for l in STANDARD_LEAD_ORDER]
     signal = physical[order_idx, :]
@@ -103,7 +146,7 @@ def resample_signal(signal: np.ndarray, fs_from: float, fs_to: float) -> np.ndar
     return resample_poly(signal, up, down, axis=1).astype(np.float32)
 
 
-def sanity_check_amplitude(chapman_root: str, sample_record_ids: list) -> None:
+def sanity_check_amplitude(chapman_root: str, sample_hea_paths: list) -> None:
     """
     WAJIB dijalankan sekali secara manual sebelum training sungguhan dengan
     data boost ini. Cetak statistik amplitudo beberapa sample Chapman untuk
@@ -111,12 +154,16 @@ def sanity_check_amplitude(chapman_root: str, sample_record_ids: list) -> None:
     puluhan mikrovolt s.d. beberapa mV, mean mendekati 0). Kalau angkanya beda
     10x-100x lipat dari PTB-XL, gain/baseline kemungkinan salah parse --
     JANGAN training dulu sebelum ini dicek.
+
+    sample_hea_paths : list nilai kolom 'hea_path' (path relatif dari CSV),
+                        BUKAN record_id, karena struktur folder Chapman tidak
+                        flat (lihat load_chapman_record).
     """
     print("[sanity_check_amplitude] Statistik amplitudo sample Chapman "
           "(bandingkan manual dengan std/mean sinyal PTB-XL mentah):")
-    for rid in sample_record_ids[:5]:
-        signal, fs = load_chapman_record(rid, chapman_root)
-        print(f"  {rid}: fs={fs}Hz  shape={signal.shape}  "
+    for hea_path in sample_hea_paths[:5]:
+        signal, fs = load_chapman_record(hea_path, chapman_root)
+        print(f"  {hea_path}: fs={fs}Hz  shape={signal.shape}  "
               f"mean={signal.mean():.4f}  std={signal.std():.4f}  "
               f"min={signal.min():.4f}  max={signal.max():.4f}")
 
@@ -131,7 +178,13 @@ class ChapmanBoostDataset(Dataset):
 
     def __init__(self, df: pd.DataFrame, config: PTBXLConfig, chapman_root: str):
         """df: hasil chapman_labels.filter_boost_class() -- harus punya kolom
-        'record_id' + kolom config.target_classes (0/1)."""
+        'record_id', 'hea_path' + kolom config.target_classes (0/1)."""
+        if "hea_path" not in df.columns:
+            raise ValueError(
+                "ChapmanBoostDataset butuh kolom 'hea_path' di df (dari CSV format "
+                "baru chapman_labels_snomed.csv). Kolom yang ada: "
+                f"{list(df.columns)}"
+            )
         self.df = df.reset_index(drop=True)
         self.config = config
         self.chapman_root = chapman_root
@@ -141,9 +194,9 @@ class ChapmanBoostDataset(Dataset):
 
     def __getitem__(self, idx: int):
         row = self.df.iloc[idx]
-        record_id = row["record_id"]
+        hea_path = row["hea_path"]
 
-        signal, fs = load_chapman_record(record_id, self.chapman_root)
+        signal, fs = load_chapman_record(hea_path, self.chapman_root)
         signal = sanitize(signal)
 
         if self.config.use_bandpass_filter:
