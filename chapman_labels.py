@@ -95,37 +95,26 @@ def compute_boost_target(train_df: pd.DataFrame, target_classes, boost_class: st
     return needed
 
 
-def filter_boost_class(df: pd.DataFrame, boost_class: str, boost_target: int,
-                        seed: int = 42) -> pd.DataFrame:
+def filter_boost_class(chapman_df, boost_class, boost_target, boost_neg_ratio=1.0, seed=42):
     """
-    Ambil subset record Chapman yang punya label boost_class aktif, dibatasi
-    sampai boost_target record (random sample kalau tersedia lebih banyak).
-    Kalau tersedia LEBIH SEDIKIT dari boost_target, ambil semua yang ada
-    (tidak error, cuma boost-nya jadi tidak penuh -> dicetak sebagai info).
-
-    Kolom 'hea_path' dan 'record_id' ikut terbawa di subset hasil filter,
-    dipakai belakangan oleh ChapmanBoostDataset untuk membaca file sinyal.
+    Ambil sampel kelas target (misal HYP) sesuai target jumlah, 
+    ditambah sampel non-target buat penyeimbang domain (boost_neg_ratio).
     """
-    if boost_class not in df.columns:
-        raise ValueError(f"boost_class '{boost_class}' tidak ada di kolom Chapman metadata")
-
-    subset = df[df[boost_class] == 1].copy()
-    n_available = len(subset)
-
-    if n_available == 0:
-        print(f"[chapman_labels] PERINGATAN: tidak ada record Chapman dengan label {boost_class}")
-        return subset
-
-    if boost_target <= 0:
-        print(f"[chapman_labels] boost_target=0, tidak ada data Chapman yang ditambahkan")
-        return subset.iloc[0:0]
-
-    if n_available > boost_target:
-        subset = subset.sample(n=boost_target, random_state=seed)
-    elif n_available < boost_target:
-        print(f"[chapman_labels] PERINGATAN: hanya {n_available} record {boost_class} tersedia "
-              f"di Chapman, kurang dari target {boost_target}. Semua dipakai.")
-
-    print(f"[chapman_labels] Boost kelas {boost_class}: {len(subset)}/{n_available} "
-          f"record Chapman dipakai (target={boost_target})")
-    return subset.reset_index(drop=True)
+    # 1. Ambil sampel target (Positif)
+    target_df = chapman_df[chapman_df[boost_class] == 1]
+    if len(target_df) > boost_target:
+        target_df = target_df.sample(n=boost_target, random_state=seed)
+        
+    # 2. Ambil sampel non-target (Negatif)
+    neg_df = chapman_df[chapman_df[boost_class] == 0]
+    neg_target_count = int(len(target_df) * boost_neg_ratio)
+    
+    if len(neg_df) > neg_target_count:
+        neg_df = neg_df.sample(n=neg_target_count, random_state=seed)
+        
+    # 3. Gabungin dan acak
+    combined_df = pd.concat([target_df, neg_df]).sample(frac=1.0, random_state=seed).reset_index(drop=True)
+    
+    print(f"[chapman_labels] Boost Applied: {len(target_df)} Positif ({boost_class}), {len(neg_df)} Negatif. Total: {len(combined_df)} records.")
+    
+    return combined_df

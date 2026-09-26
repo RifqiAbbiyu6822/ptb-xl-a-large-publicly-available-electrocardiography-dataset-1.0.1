@@ -1,79 +1,81 @@
 import torch
 import torch.nn as nn
 
-class AsymmetricLoss(nn.Module):
+
+class AsymmetricLossMultiLabel(nn.Module):
     def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-8):
-        """
-        Asymmetric Loss untuk Multi-Label Classification.
-        Sudah diperbaiki untuk stabilitas Mixed-Precision Training (AMP / fp16).
-        """
-        super(AsymmetricLoss, self).__init__()
+        super(AsymmetricLossMultiLabel, self).__init__()
         self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
         self.clip = clip
         self.eps = eps
 
     def forward(self, x, y):
-        # FIX STABILITAS: Paksa casting logits dan target ke float32 (fp32)
-        # Menghindari efek samping autocast fp16 yang bikin clamp(min=1e-8) jadi 0
         x = x.float()
         y = y.float()
         
-        # Kalkulasi probabilitas
         xs_pos = torch.sigmoid(x)
         xs_neg = 1 - xs_pos
 
-        # Asymmetric Clipping untuk membuang negative sample yang terlalu mudah
         if self.clip is not None and self.clip > 0:
             xs_neg = (xs_neg + self.clip).clamp(max=1)
 
-        # Guard tambahan sebelum masuk logaritma biar aman dari -inf
         xs_pos = xs_pos.clamp(min=self.eps)
         xs_neg = xs_neg.clamp(min=self.eps)
 
-        # Hitung Asymmetric Focal Loss
         loss_pos = y * torch.log(xs_pos) * (1 - xs_pos) ** self.gamma_pos
         loss_neg = (1 - y) * torch.log(xs_neg) * (1 - xs_neg) ** self.gamma_neg
         
-        # Gabung dan rata-rata
-        loss = loss_pos + loss_neg
-        return -torch.mean(loss)
+        return -torch.mean(loss_pos + loss_neg)
 
-class AsymmetricLossOptimized(nn.Module):
+class FocalLossMultiLabel(nn.Module):
     """
-    Versi alternatif kalau lo mau iterasi lebih rapi untuk per-kelas, 
-    biasanya dipakai kalau ada class-weighting spesifik. 
-    Secara default pakai AsymmetricLoss di atas sudah cukup.
+    Sigmoid Focal Loss (Lin et al., 2017) untuk multi-label.
+    Alternatif yang lebih sederhana dari ASL: satu gamma untuk pos & neg
+    (simetris), plus alpha skalar opsional untuk weighting statis tambahan
+    antara kelas positif vs negatif secara keseluruhan.
     """
-    def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-8):
-        super(AsymmetricLossOptimized, self).__init__()
-        self.gamma_neg = gamma_neg
-        self.gamma_pos = gamma_pos
-        self.clip = clip
+
+    def __init__(self, gamma: float = 2.0, alpha: float = None, eps: float = 1e-8):
+        super().__init__()
+        self.gamma = gamma
+        self.alpha = alpha
         self.eps = eps
-        self.targets = self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
 
-    def forward(self, x, y):
-        x = x.float()
-        y = y.float()
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        p = torch.sigmoid(logits)
+        ce_loss = nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        p_t = p * targets + (1 - p) * (1 - targets)
+        loss = ce_loss * ((1 - p_t).clamp(min=self.eps) ** self.gamma)
 
-        self.targets = y
-        self.anti_targets = 1 - y
+        if self.alpha is not None:
+            alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+            loss = alpha_t * loss
 
-        self.xs_pos = torch.sigmoid(x)
-        self.xs_neg = 1 - self.xs_pos
+        return loss.sum(dim=1).mean()
 
-        if self.clip is not None and self.clip > 0:
-            self.xs_neg = (self.xs_neg + self.clip).clamp(max=1)
 
-        self.xs_pos = self.xs_pos.clamp(min=self.eps)
-        self.xs_neg = self.xs_neg.clamp(min=self.eps)
+def build_criterion(loss_fn: str, pos_weight: torch.Tensor = None,
+                     asl_gamma_neg: float = 4.0, asl_gamma_pos: float = 1.0,
+                     asl_clip: float = 0.05,
+                     focal_gamma: float = 2.0, focal_alpha: float = None) -> nn.Module:
+    """Factory: bangun loss module sesuai pilihan --loss_fn di train.py."""
+    loss_fn = loss_fn.lower()
 
-        self.loss = self.targets * torch.log(self.xs_pos)
-        self.loss = self.loss.add(self.anti_targets * torch.log(self.xs_neg))
-        
-        self.asymmetric_w = torch.pow(1 - self.xs_pos, self.gamma_pos) * self.targets
-        self.asymmetric_w = self.asymmetric_w.add(torch.pow(1 - self.xs_neg, self.gamma_neg) * self.anti_targets)
+    if loss_fn == "bce":
+        return nn.BCEWithLogitsLoss()
 
-        self.loss = self.loss * self.asymmetric_w
-        return -self.loss.mean()
+    if loss_fn == "bce_pos_weight":
+        if pos_weight is None:
+            raise ValueError("loss_fn='bce_pos_weight' butuh pos_weight (dihitung dari train_df)")
+        return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
+    if loss_fn == "focal":
+        return FocalLossMultiLabel(gamma=focal_gamma, alpha=focal_alpha)
+
+    if loss_fn == "asl":
+        return AsymmetricLossMultiLabel(gamma_neg=asl_gamma_neg, gamma_pos=asl_gamma_pos,
+                                         clip=asl_clip)
+
+    raise ValueError(f"loss_fn '{loss_fn}' tidak dikenal, pilih dari "
+                      f"['bce', 'bce_pos_weight', 'focal', 'asl']")

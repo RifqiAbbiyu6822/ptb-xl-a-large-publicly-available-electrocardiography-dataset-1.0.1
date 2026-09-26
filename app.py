@@ -49,8 +49,8 @@ SPIKE_WINDOW_SEC = 0.16
 SPIKE_MIN_DISTANCE_SEC = 0.15
 SPIKES_PER_LABEL = 5
 
-MODEL_PATH = "checkpoints_v11_500hz/best_model.pt"
-THRESHOLDS_PATH = "checkpoints_v11_500hz/best_thresholds.json"
+MODEL_PATH = "checkpoints/run_stable_01/best_model.pt"
+THRESHOLDS_PATH = "checkpoints/run_stable_01/best_thresholds.json"
 
 LEAD_NAMES = ["I", "II", "III", "aVR", "aVL", "aVF",
               "V1", "V2", "V3", "V4", "V5", "V6"]

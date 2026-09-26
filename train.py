@@ -301,7 +301,8 @@ def main():
             boost_target = compute_boost_target(train_df, config.target_classes, args.boost_class)
             
         # Pastikan filter_boost_class di chapman_labels.py udah nerima neg_ratio ya
-        boost_df = filter_boost_class(chapman_df, args.boost_class, boost_target, args.boost_neg_ratio, seed=config.seed)
+        # Pakai argumen bernama (keyword argument) biar nggak nabrak:
+        boost_df = filter_boost_class(chapman_df, args.boost_class, boost_target, seed=config.seed, boost_neg_ratio=args.boost_neg_ratio)
         
         if len(boost_df) > 0:
             boost_dataset = ChapmanBoostDataset(boost_df, config, args.chapman_root)
@@ -348,7 +349,7 @@ def main():
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     use_amp = device.type == "cuda"
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp) if use_amp else None
+    scaler = torch.amp.GradScaler('cuda', enabled=use_amp) if use_amp else None
 
     # Ubah metric pemicu best checkpoint dari macro_f1 jadi macro_auroc
     best_macro_auroc = -1.0
