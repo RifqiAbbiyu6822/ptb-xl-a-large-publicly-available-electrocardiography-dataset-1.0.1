@@ -102,7 +102,7 @@ CUSTOM_CSS = """
   --text-1: #EAEDF1; --text-2: #8B93A1; --text-3: #5B6270;
   --accent: #4F8EF7; --accent-soft: rgba(79,142,247,0.12);
   --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
-  --gutter: clamp(20px, 4vw, 64px);
+  --gutter: clamp(20px, 2.5vw, 40px);
 }
 
 html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -110,9 +110,18 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystem
 #MainMenu, header[data-testid="stHeader"], footer { visibility: hidden; height: 0; }
 section[data-testid="stSidebar"] { display: none !important; }
 
-/* Wide, gutter-based layout instead of a fixed narrow centered column */
+/* Full-bleed layout: the app fills the viewport edge to edge, with only a
+   comfortable reading gutter (no centered/capped column, no dead space). */
+html, body { overflow-x: hidden; }
+div[data-testid="stAppViewContainer"],
+div[data-testid="stAppViewContainer"] > .main,
+section.main { width: 100% !important; max-width: 100% !important; }
+
 .block-container {
-  max-width: min(1440px, 94vw) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
   padding-top: 2.2rem !important;
   padding-bottom: 4rem !important;
   padding-left: var(--gutter) !important;
@@ -845,9 +854,21 @@ if run_btn:
             textfont=dict(color="#E8EDF2", size=13),
         ))
         for i, c in enumerate(CLASSES):
-            bar_fig.add_hline(y=thresholds[c], line_dash="dot", line_color=CLASS_COLORS[c],
-                               annotation_text=f"{c} thr", annotation_position="top right",
-                               opacity=0.45)
+            # Short segment over just this bar's column, not a full-width hline,
+            # so labels never overlap between classes.
+            bar_fig.add_shape(
+                type="line", xref="x", yref="y",
+                x0=i - 0.42, x1=i + 0.42, y0=thresholds[c], y1=thresholds[c],
+                line=dict(dash="dot", color=CLASS_COLORS[c], width=1.6),
+                opacity=0.8,
+            )
+            bar_fig.add_annotation(
+                x=i, y=thresholds[c], xref="x", yref="y",
+                text=f"thr {thresholds[c]:.2f}",
+                showarrow=False, yshift=12,
+                font=dict(color=CLASS_COLORS[c], size=10.5, family="JetBrains Mono, monospace"),
+                bgcolor="rgba(0,0,0,0.35)", borderpad=2,
+            )
         bar_fig.update_layout(
             yaxis_range=[0, 1], template="plotly_dark", height=420,
             margin=dict(l=20, r=20, t=20, b=20),
