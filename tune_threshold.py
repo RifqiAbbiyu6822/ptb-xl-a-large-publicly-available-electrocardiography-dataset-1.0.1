@@ -1,5 +1,6 @@
 import argparse
 import json
+from turtle import width
 
 import numpy as np
 import torch
@@ -119,8 +120,8 @@ def decide_thresholds(point_estimate: dict, bootstrap_results: dict,
         median_t = float(np.median(vals))
         ci_low = float(np.percentile(vals, 2.5))
         ci_high = float(np.percentile(vals, 97.5))
-        width = ci_high - ci_low
-        stable = width <= ci_width_threshold
+        width = round(ci_high - ci_low, 4)
+        stable = width <= ci_width_threshold + 1e-9
 
         decisions[c] = {
             "point_threshold": point["threshold"],

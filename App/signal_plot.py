@@ -50,7 +50,7 @@ def _build_figure(plot_signal, plot_leads, plot_fs, zoom_factor):
         font=dict(family="Instrument Sans, sans-serif", color=ECG_TEXT_COLOR),
     )
     for ann in fig.layout.annotations:
-        ann.font = dict(family="Instrument Sans, sans-serif", color=ECG_TEXT_COLOR, size=11)
+        ann.font = dict(family="Instrument Sans, sans-serif", color=ECG_TEXT_COLOR, size=12)
 
     fig.update_xaxes(title_text="detik", row=n_leads_plot, col=1)
     fig.update_xaxes(
@@ -105,12 +105,15 @@ def render_signal_tab(raw_signal, fs, sig_names, resampled, sr):
     stage_html = f"""
     <style>
       html, body {{ margin: 0; background: transparent; }}
-      .stage {{ overflow-x: auto; border-radius: 12px; border: 1px solid rgba(233,231,226,0.1);
-                background: {ECG_PAPER_BG}; padding: 6px 6px 2px 6px; }}
+     .stage {{ overflow-x: auto; overscroll-behavior-x: contain; max-width: 100%;
+          border-radius: 12px; border: 1px solid rgba(233,231,226,0.1);
+          background: {ECG_PAPER_BG}; padding: 6px 6px 2px 6px; }}
       .stage::-webkit-scrollbar {{ height: 8px; }}
       .stage::-webkit-scrollbar-track {{ background: transparent; }}
       .stage::-webkit-scrollbar-thumb {{ background: rgba(233,231,226,0.2); border-radius: 6px; }}
-      .stage::-webkit-scrollbar-thumb:hover {{ background: rgba(233,231,226,0.4); }}
+        @media (hover: hover) {{
+  .stage::-webkit-scrollbar-thumb:hover {{ background: rgba(233,231,226,0.4); }}
+}}
     </style>
     <div class="stage">
         <div style="width:{int(1380 * zoom_factor)}px;">{plot_html}</div>

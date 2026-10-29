@@ -34,9 +34,9 @@ def _resolve(rel_path):
             return candidate
     return rel_path
 
-
-MODEL_PATH = _resolve("checkpoints/full_run/best_model.pt")
-THRESHOLDS_PATH = _resolve("checkpoints/full_run/best_thresholds.json")
+RUN_DIR = r"C:\Users\imneo\Documents\Skripsi\data\ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1\checkpoints\run_stable_01"
+MODEL_PATH = os.path.join(RUN_DIR, "best_model.pt")
+THRESHOLDS_PATH = os.path.join(RUN_DIR, "best_thresholds.json")
 
 LEAD_NAMES = ["I", "II", "III", "aVR", "aVL", "aVF",
               "V1", "V2", "V3", "V4", "V5", "V6"]

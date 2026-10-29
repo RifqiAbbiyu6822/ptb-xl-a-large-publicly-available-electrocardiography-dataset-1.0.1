@@ -37,7 +37,7 @@ def render_hero():
 def render_progress(placeholder, label, pct):
     placeholder.markdown(
         f'<div class="scan-banner"><div class="scan-track">'
-        f'<div class="scan-fill" style="width:{pct}%;"></div></div>'
+        f'<div class="scan-fill" style="transform:scaleX({pct / 100:.2f});"></div></div>'
         f'<div class="scan-label">{label}</div></div>',
         unsafe_allow_html=True,
     )
@@ -77,12 +77,12 @@ def render_diagnosis_row(index, prob, threshold, active):
     pct = max(0.0, min(1.0, prob)) * 100
     thr = max(0.0, min(1.0, threshold)) * 100
     state = "Terdeteksi" if active else "Di bawah ambang"
-    delay = 0.08 * index
+    delay = 0.025 * index
     return (
         f'<div class="dx-row{" active" if active else ""}" style="--c:{color};">'
         f'<div class="dx-name"><span class="dx-code"><i></i>{code}</span>'
         f'<span class="dx-long">{CLASS_LABELS_LONG[code]}</span></div>'
-        f'<div class="dx-bar"><div class="dx-fill" style="width:{pct:.1f}%; animation-delay:{delay:.2f}s;"></div>'
+        f'<div class="dx-bar"><div class="dx-fill" style="width:{pct:.1f}%; animation-delay:{delay:.3f}s;"></div>'
         f'<div class="dx-tick" style="left:{thr:.1f}%;"></div></div>'
         f'<div class="dx-pct">{pct:.0f}%</div>'
         f'<div class="dx-state"><b>{state}</b><span>ambang {threshold:.2f}</span></div>'

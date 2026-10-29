@@ -1,10 +1,9 @@
 """Pemuatan model, ambang batas, dan inferensi."""
 import json
 import os
-
 import streamlit as st
 import torch
-
+import warnings
 from config import PTBXLConfig
 from constants import CLASSES
 from model import build_model
@@ -36,15 +35,33 @@ def load_model_and_config(checkpoint_path, device):
     return model, ptb_config
 
 
+
+
 def load_thresholds(path):
-    if path and os.path.exists(path):
+    default = {c: 0.5 for c in CLASSES}
+    if not path or not os.path.exists(path):
+        warnings.warn(f"File threshold tidak ditemukan ({path}), semua kelas pakai 0.5.")
+        return default
+
+    try:
+        with open(path) as f:
+            raw = json.load(f)
+    except Exception as e:
+        warnings.warn(f"Gagal baca file threshold ({e}), semua kelas pakai 0.5.")
+        return default
+
+    out = {}
+    for c in CLASSES:
+        v = raw.get(c, 0.5)
+        # format nested dari tune_threshold.py
+        if isinstance(v, dict):
+            v = v.get("final_threshold", v.get("threshold", 0.5))
         try:
-            with open(path) as f:
-                raw = json.load(f)
-            return {c: float(raw.get(c, 0.5)) for c in CLASSES}
-        except Exception:
-            pass
-    return {c: 0.5 for c in CLASSES}
+            out[c] = float(v)
+        except (TypeError, ValueError):
+            warnings.warn(f"Threshold kelas {c} tidak valid ({v!r}), pakai 0.5.")
+            out[c] = 0.5
+    return out
 
 
 def run_inference(model, signal_12xN, device):
