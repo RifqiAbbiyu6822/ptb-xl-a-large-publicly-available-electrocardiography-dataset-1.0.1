@@ -26,6 +26,7 @@ def render_ecg_trace():
 def render_hero():
     st.markdown(
         f'<header class="hero">'
+        f'<p class="hero-eyebrow">ConvNeXt-1D · Squeeze-and-Excitation · PTB-XL</p>'
         f'<h1>{HERO_TITLE}</h1>'
         f'<p class="hero-sub">{HERO_SUBTITLE}</p>'
         f'{render_ecg_trace()}'
@@ -77,12 +78,12 @@ def render_diagnosis_row(index, prob, threshold, active):
     pct = max(0.0, min(1.0, prob)) * 100
     thr = max(0.0, min(1.0, threshold)) * 100
     state = "Terdeteksi" if active else "Di bawah ambang"
-    delay = 0.025 * index
+    delay = 0.06 * index   # stagger antar baris; bar dan tick menyusul lewat CSS
     return (
-        f'<div class="dx-row{" active" if active else ""}" style="--c:{color};">'
+        f'<div class="dx-row{" active" if active else ""}" style="--c:{color}; --d:{delay:.2f}s;">'
         f'<div class="dx-name"><span class="dx-code"><i></i>{code}</span>'
         f'<span class="dx-long">{CLASS_LABELS_LONG[code]}</span></div>'
-        f'<div class="dx-bar"><div class="dx-fill" style="width:{pct:.1f}%; animation-delay:{delay:.3f}s;"></div>'
+        f'<div class="dx-bar"><div class="dx-fill" style="width:{pct:.1f}%;"></div>'
         f'<div class="dx-tick" style="left:{thr:.1f}%;"></div></div>'
         f'<div class="dx-pct">{pct:.0f}%</div>'
         f'<div class="dx-state"><b>{state}</b><span>ambang {threshold:.2f}</span></div>'
@@ -139,9 +140,9 @@ def render_empty_state():
         ("4", "Hasil", "Ambang batas menentukan label aktif. Probabilitas tiap kelas dan sinyal 12-lead ikut ditampilkan."),
     ]
     steps_html = "".join(
-        f'<div class="step"><div class="step-num">{n}</div>'
+        f'<div class="step" style="--d:{0.06 * i:.2f}s;"><div class="step-num">{n}</div>'
         f'<div class="step-title">{t}</div><p class="step-desc">{d}</p></div>'
-        for n, t, d in steps
+        for i, (n, t, d) in enumerate(steps)
     )
     st.markdown(f'<div class="steps">{steps_html}</div>', unsafe_allow_html=True)
 
@@ -151,6 +152,8 @@ def render_empty_state():
     )
     st.markdown(
         f'<div class="legend"><p class="legend-title">Kelas yang diprediksi</p>'
-        f'<div class="legend-grid">{legend_items}</div></div>',
+        f'<div class="legend-grid">{legend_items}</div></div>'
+        '<p class="disclaimer">Alat bantu penelitian. Keluaran model bukan diagnosis klinis '
+        'dan tidak menggantikan penilaian tenaga medis.</p>',
         unsafe_allow_html=True,
     )
